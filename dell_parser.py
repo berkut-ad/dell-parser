@@ -220,36 +220,28 @@ def get_sonic_hosts(connection):
     """
     Returns a list of tuples for SONiC switches.
     Column 1: Enter SONiC SW01 .. SW29
-    Column 2: parsed hostname from 'show lldp nei'
-    Debug prints included.
+    Column 2: parsed hostname from 'show lldp nei | grep Name:'
     """
-    output = connection.send_command("show lldp nei")  # no grep
+    output = connection.send_command("show lldp nei det | grep Name:")
     remote_names = []
 
-    print("DEBUG: Full LLDP output:")
-    print(output)
-    print("="*60)
-
-    # Regex: case-insensitive, allow any amount of spaces
-    pattern = re.compile(r"Remote\s+System\s+Name:\s*(.+)", re.IGNORECASE)
+    # Regex to extract text after 'Remote System Name:'
+    pattern = re.compile(r"Remote System Name:\s*(\S+)")
 
     for line in output.splitlines():
-        print(f"DEBUG: Line: '{line}'")
         match = pattern.search(line)
         if match:
-            hostname = match.group(1).strip()
-            remote_names.append(hostname)
-            print(f"DEBUG: Matched hostname: '{hostname}'")
+            remote_names.append(match.group(1))
 
-    # Prepare 29 rows
+    # Prepare 29 rows, fill with empty string if LLDP output has fewer entries
     results = []
-    for i in range(1, 30):
+    for i in range(1, 30):  # SW01 to SW29
         col1 = f"Enter SONiC SW{i:02d}"
         col2 = remote_names[i-1] if i-1 < len(remote_names) else ""
-        print(f"DEBUG: CSV Row -> '{col1}', '{col2}'")
         results.append((col1, col2))
 
     return results
+
 
 def main():
     parser = argparse.ArgumentParser(description="Dell Switch Data Collector")
