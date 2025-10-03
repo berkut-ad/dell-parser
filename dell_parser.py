@@ -151,7 +151,9 @@ def get_vlan_info(connection, vlan):
             ip_primary = line.split()[-1]
         # Secondary IP
         elif line.startswith("ip address") and "secondary" in line:
-            ip_secondary = line.split()[-1]
+            parts = line.split()
+            if len(parts) >= 3:
+                ip_secondary = parts[1]  # second word is the IP/subnet
         # VRRP groups
         elif line.startswith("vrrp-group"):
             group_number = line.split()[1]
@@ -171,6 +173,39 @@ def get_vlan_info(connection, vlan):
     results.append((f"Enter Vlan {vlan} IP address with Subnet", ip_primary or "NO IP FOUND"))
     results.append((f"Enter Vlan {vlan} IP address secondary with Subnet", ip_secondary or "NO SECONDARY IP FOUND"))
     results.append((f"Enter Vlan {vlan} Virtual IP address secondary", vrrp_secondary or "NO VRRP SECONDARY FOUND"))
+
+    return results
+
+def get_vlan_basic(connection, vlan):
+    """
+    Parse 'show run int vlan X' and return a list of tuples:
+    (Column 1, Column 2)
+    Only handles primary IP and VRRP virtual IP; no secondary IPs.
+    """
+    output = connection.send_command(f"show running-config interface vlan {vlan}")
+    results = []
+
+    ip_primary = None
+    vrrp_primary = None
+    vrrp_groups = {}
+
+    for line in output.splitlines():
+        line = line.strip()
+        # Primary IP
+        if line.startswith("ip address"):
+            ip_primary = line.split()[2]  # second word after 'ip address' is the IP/subnet
+        # VRRP groups
+        elif line.startswith("vrrp-group"):
+            group_number = line.split()[1]
+            vrrp_groups[group_number] = None
+        elif line.startswith("virtual-address"):
+            vrrp_groups[list(vrrp_groups.keys())[-1]] = line.split()[-1]
+
+    # VRRP primary: group number == vlan
+    vrrp_primary = vrrp_groups.get(str(vlan), "NO VRRP IP FOUND")
+
+    results.append((f"Enter Vlan {vlan} Virtual IP", vrrp_primary))
+    results.append((f"Enter Vlan {vlan} IP address", ip_primary or "NO IP FOUND"))
 
     return results
 
@@ -207,6 +242,10 @@ def main():
         ("Enter logging server", get_logging_servers),
         ("Enter DHCP server IP", get_dhcp_servers),
         ("VLAN 10 info", lambda conn: get_vlan_info(conn, 10)),
+        ("VLAN 20 basic info", lambda conn: get_vlan_basic(conn, 20)),
+        ("VLAN 30 info", lambda conn: get_vlan_info(conn, 30)),
+        ("VLAN 40 info", lambda conn: get_vlan_info(conn, 40)),
+        ("VLAN 500 info", lambda conn: get_vlan_info(conn, 500)),
     ]
 
     # Run and write to CSV
