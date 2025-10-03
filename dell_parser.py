@@ -269,6 +269,25 @@ def get_ospf_area(connection):
 
     return results
 
+def get_distro_mgmt_ip(connection):
+    """
+    Parse 'show running-config interface managementethernet 1/1 | grep address'
+    Returns a single tuple for CSV: (Column 1, Column 2)
+    """
+    output = connection.send_command("show running-config interface managementethernet 1/1 | grep address")
+    ip_address = ""
+
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("ip address"):
+            # second word after 'ip address' is the IP/subnet
+            parts = line.split()
+            if len(parts) >= 3:
+                ip_address = parts[2]
+                break
+
+    return [("Enter IP address between Distro", ip_address or "NO IP FOUND")]
+
 
 def main():
     parser = argparse.ArgumentParser(description="Dell Switch Data Collector")
@@ -309,6 +328,7 @@ def main():
         ("VLAN 500 info", lambda conn: get_vlan_info(conn, 500)),
         ("SONiC Switches", get_sonic_hosts),
         ("OSPF Area Info", get_ospf_area),
+        ("Distro Management IP", get_distro_mgmt_ip),
     ]
 
     # Run and write to CSV
