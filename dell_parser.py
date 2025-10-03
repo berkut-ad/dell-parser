@@ -225,14 +225,13 @@ def get_sonic_hosts(connection):
     output = connection.send_command("show lldp nei | grep Name:")
     remote_names = []
 
-    # Extract hostnames from LLDP output
+    # Regex to extract text after 'Remote System Name:'
+    pattern = re.compile(r"Remote System Name:\s*(\S+)")
+
     for line in output.splitlines():
-        line = line.strip()
-        if line.startswith("Remote System Name:"):
-            # Split on colon and take the part after it
-            parts = line.split(":", 1)
-            if len(parts) > 1:
-                remote_names.append(parts[1].strip())
+        match = pattern.search(line)
+        if match:
+            remote_names.append(match.group(1))
 
     # Prepare 29 rows, fill with empty string if LLDP output has fewer entries
     results = []
