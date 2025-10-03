@@ -1,6 +1,7 @@
 import argparse
 import csv
 import re
+import ipadress
 
 from netmiko import ConnectHandler
 
@@ -137,8 +138,7 @@ def get_vlan_info(connection, vlan):
 
     ip_primary = None
     ip_secondary = None
-    vrrp_primary = None
-    vrrp_secondary = None
+    vrrp_ips = []
 
     # Track VRRP groups
     vrrp_groups = {}
@@ -155,19 +155,26 @@ def get_vlan_info(connection, vlan):
             if len(parts) >= 3:
                 ip_secondary = parts[2]  # second word is the IP/subnet
         # VRRP groups
-        elif line.startswith("vrrp-group"):
-            group_number = line.split()[1]
-            vrrp_groups[group_number] = None  # placeholder
         elif line.startswith("virtual-address"):
-            vrrp_groups[list(vrrp_groups.keys())[-1]] = line.split()[-1]
+            vrrp_ips.append(line.split()[-1])
 
-    # VRRP primary: group number == vlan
-    vrrp_primary = vrrp_groups.get(str(vlan), None)
-    # VRRP secondary: first group number != vlan
-    for group, vip in vrrp_groups.items():
-        if group != str(vlan):
-            vrrp_secondary = vip
-            break
+    # Determine which VRRP IP matches primary subnet
+    vrrp_primary = None
+    vrrp_secondary = None
+
+    if ip_primary:
+        net_primary = ipaddress.ip_network(ip_primary, strict=False)
+        for vip in vrrp_ips:
+            if ipaddress.ip_address(vip) in net_primary:
+                vrrp_primary = vip
+                break
+
+    if ip_secondary:
+        net_secondary = ipaddress.ip_network(ip_secondary, strict=False)
+        for vip in vrrp_ips:
+            if ipaddress.ip_address(vip) in net_secondary:
+                vrrp_secondary = vip
+                break
 
     results.append((f"Enter Vlan {vlan} Virtual IP", vrrp_primary or "NO VRRP IP FOUND"))
     results.append((f"Enter Vlan {vlan} IP address with Subnet", ip_primary or "NO IP FOUND"))
