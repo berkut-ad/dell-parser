@@ -106,6 +106,74 @@ def get_logging_servers(connection):
     
     return ips
 
+def get_dhcp_servers(connection):
+    """
+    Run 'show running-config | grep helper-address' and extract IP addresses.
+    Returns a deduplicated list of IPs; one per CSV row.
+    """
+    output = connection.send_command("show running-config | grep helper-address")
+    ips = set()  # use a set to automatically deduplicate
+
+    # Regex to match IPv4 addresses
+    ip_regex = r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b"
+
+    for line in output.splitlines():
+        matches = re.findall(ip_regex, line)
+        for ip in matches:
+            ips.add(ip)
+
+    if not ips:
+        return ["NO DHCP SERVER FOUND"]
+    
+    return list(ips)
+
+def get_vlan_info(connection, vlan):
+    """
+    Parse 'show run int vlan X' and return a list of tuples:
+    (Column 1, Column 2)
+    """
+    output = connection.send_command(f"show run interface vlan {vlan}")
+    results = []
+
+    ip_primary = None
+    ip_secondary = None
+    vrrp_primary = None
+    vrrp_secondary = None
+
+    # Track VRRP groups
+    vrrp_groups = {}
+
+    lines = output.splitlines()
+    for line in lines:
+        line = line.strip()
+        # Primary IP
+        if line.startswith("ip address") and "secondary" not in line:
+            ip_primary = line.split()[-1]
+        # Secondary IP
+        elif line.startswith("ip address") and "secondary" in line:
+            ip_secondary = line.split()[-1]
+        # VRRP groups
+        elif line.startswith("vrrp-group"):
+            group_number = line.split()[1]
+            vrrp_groups[group_number] = None  # placeholder
+        elif line.startswith("virtual-address"):
+            vrrp_groups[list(vrrp_groups.keys())[-1]] = line.split()[-1]
+
+    # VRRP primary: group number == vlan
+    vrrp_primary = vrrp_groups.get(str(vlan), None)
+    # VRRP secondary: first group number != vlan
+    for group, vip in vrrp_groups.items():
+        if group != str(vlan):
+            vrrp_secondary = vip
+            break
+
+    results.append((f"Enter Vlan {vlan} Virtual IP", vrrp_primary or "NO VRRP IP FOUND"))
+    results.append((f"Enter Vlan {vlan} IP address with Subnet", ip_primary or "NO IP FOUND"))
+    results.append((f"Enter Vlan {vlan} IP address secondary with Subnet", ip_secondary or "NO SECONDARY IP FOUND"))
+    results.append((f"Enter Vlan {vlan} Virtual IP address secondary", vrrp_secondary or "NO VRRP SECONDARY FOUND"))
+
+    return results
+
 def main():
     parser = argparse.ArgumentParser(description="Dell Switch Data Collector")
     parser.add_argument("host", help="Hostname or IP of switch")
@@ -137,18 +205,28 @@ def main():
         ("Enter SNMP Location", get_snmp_location),
         ("Enter uplink Description", get_uplink_description),
         ("Enter logging server", get_logging_servers),
+        ("Enter DHCP server IP", get_dhcp_servers),
+        ("VLAN 10 info", lambda conn: get_vlan_info(conn, 10)),
     ]
 
     # Run and write to CSV
     with open(args.output, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
+    
         for description, func in commands:
             result = func(connection)
-            # Check if the result is a list (multiple entries)
+            
             if isinstance(result, list):
-                for item in result:
-                    writer.writerow([description, item])
+                # Check if list contains tuples (VLAN info)
+                if all(isinstance(r, tuple) and len(r) == 2 for r in result):
+                    for col1, col2 in result:
+                        writer.writerow([col1, col2])
+                else:
+                    # List of strings (logging servers, DHCP servers, etc.)
+                    for item in result:
+                        writer.writerow([description, item])
             else:
+                # Single string result
                 writer.writerow([description, result])
 
     connection.disconnect()
