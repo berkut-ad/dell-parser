@@ -1,7 +1,7 @@
 import argparse
 import csv
 import re
-import ipadress
+import ipaddress
 
 from netmiko import ConnectHandler
 
