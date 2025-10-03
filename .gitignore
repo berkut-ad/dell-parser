@@ -1,0 +1,51 @@
+# DHCP files
+dhcp.leases
+
+#  log files
+*.log
+
+# MacOS
+.DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# SQLite database
+*.db
+*.sqlite3
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+*.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/Editor settings
+.vscode/
+.idea/
+*.swp
+
+# Test coverage/report artifacts
+htmlcov/
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Backup files
+*~
+*.bak
+*.orig
+
+# Local override configs
+config.local.yaml
+secrets.yaml
