@@ -153,7 +153,7 @@ def get_vlan_info(connection, vlan):
         elif line.startswith("ip address") and "secondary" in line:
             parts = line.split()
             if len(parts) >= 3:
-                ip_secondary = parts[1]  # second word is the IP/subnet
+                ip_secondary = parts[2]  # second word is the IP/subnet
         # VRRP groups
         elif line.startswith("vrrp-group"):
             group_number = line.split()[1]
