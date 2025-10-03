@@ -1,5 +1,7 @@
 import argparse
 import csv
+import re
+
 from netmiko import ConnectHandler
 
 def get_uplink_ip(connection):
@@ -71,6 +73,39 @@ def get_snmp_location(connection):
                 return parts[1].strip()
     return "NO SNMP LOCATION FOUND"
 
+def get_uplink_description(connection):
+    """
+    Run 'show running-config interface Te 1/47 | grep "^ description"' and extract the description.
+    """
+    output = connection.send_command('show running-config interface Te 1/47 | grep "^ description"')
+
+    for line in output.splitlines():
+        if line.strip().startswith("description"):
+            return line.strip().replace("description", "", 1).strip()
+    return "NO DESCRIPTION FOUND"
+
+def get_logging_servers(connection):
+    """
+    Run 'show running-config | grep logging' and extract IP addresses.
+    Returns a list of IPs; one per CSV row.
+    """
+
+    output = connection.send_command("show running-config | grep logging")
+    ips = []
+
+    # Regex to match IPv4 addresses
+    ip_regex = r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b"
+
+    for line in output.splitlines():
+        matches = re.findall(ip_regex, line)
+        for ip in matches:
+            ips.append(ip)
+
+    if not ips:
+        ips.append("NO LOGGING SERVER FOUND")
+    
+    return ips
+
 def main():
     parser = argparse.ArgumentParser(description="Dell Switch Data Collector")
     parser.add_argument("host", help="Hostname or IP of switch")
@@ -100,6 +135,8 @@ def main():
         ("Enter Loopback IP address", get_loopback_ip),
         ("Enter Hostname", get_hostname),
         ("Enter SNMP Location", get_snmp_location),
+        ("Enter uplink Description", get_uplink_description),
+        ("Enter logging server", get_logging_servers),
     ]
 
     # Run and write to CSV
@@ -107,7 +144,12 @@ def main():
         writer = csv.writer(csvfile)
         for description, func in commands:
             result = func(connection)
-            writer.writerow([description, result])
+            # Check if the result is a list (multiple entries)
+            if isinstance(result, list):
+                for item in result:
+                    writer.writerow([description, item])
+            else:
+                writer.writerow([description, result])
 
     connection.disconnect()
 
