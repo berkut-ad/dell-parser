@@ -242,6 +242,33 @@ def get_sonic_hosts(connection):
 
     return results
 
+def get_ospf_area(connection):
+    """
+    Parse 'show running-config | grep "^ area"' and return OSPF area number and type.
+    Returns a list of tuples for CSV writing:
+    (Column 1, Column 2)
+    """
+    output = connection.send_command('show running-config | grep "^ area"')
+    area_number = ""
+    area_type = ""
+
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("area"):
+            parts = line.split()
+            if len(parts) >= 2:
+                area_number = parts[1]
+                if len(parts) >= 3:
+                    area_type = parts[2]
+            break  # take first matching line only
+
+    results = [
+        ("Enter OSPF Area", area_number or "NO AREA FOUND"),
+        ("Enter OSPF area type", area_type or "NO AREA TYPE FOUND")
+    ]
+
+    return results
+
 
 def main():
     parser = argparse.ArgumentParser(description="Dell Switch Data Collector")
@@ -281,6 +308,7 @@ def main():
         ("VLAN 40 info", lambda conn: get_vlan_info(conn, 40)),
         ("VLAN 500 info", lambda conn: get_vlan_info(conn, 500)),
         ("SONiC Switches", get_sonic_hosts),
+        ("OSPF Area Info", get_ospf_area),
     ]
 
     # Run and write to CSV
