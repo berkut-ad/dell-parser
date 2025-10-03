@@ -216,6 +216,33 @@ def get_vlan_basic(connection, vlan):
 
     return results
 
+def get_sonic_hosts(connection):
+    """
+    Returns a list of tuples for SONiC switches.
+    Column 1: Enter SONiC SW01 .. SW29
+    Column 2: parsed hostname from 'show lldp nei | grep Name:'
+    """
+    output = connection.send_command("show lldp nei | grep Name:")
+    remote_names = []
+
+    # Extract hostnames from LLDP output
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("Remote System Name:"):
+            # Split on colon and take the part after it
+            parts = line.split(":", 1)
+            if len(parts) > 1:
+                remote_names.append(parts[1].strip())
+
+    # Prepare 29 rows, fill with empty string if LLDP output has fewer entries
+    results = []
+    for i in range(1, 30):  # SW01 to SW29
+        col1 = f"Enter SONiC SW{i:02d}"
+        col2 = remote_names[i-1] if i-1 < len(remote_names) else ""
+        results.append((col1, col2))
+
+    return results
+
 def main():
     parser = argparse.ArgumentParser(description="Dell Switch Data Collector")
     parser.add_argument("host", help="Hostname or IP of switch")
@@ -253,6 +280,7 @@ def main():
         ("VLAN 30 info", lambda conn: get_vlan_info(conn, 30)),
         ("VLAN 40 info", lambda conn: get_vlan_info(conn, 40)),
         ("VLAN 500 info", lambda conn: get_vlan_info(conn, 500)),
+        ("SONiC Switches", get_sonic_hosts),
     ]
 
     # Run and write to CSV
