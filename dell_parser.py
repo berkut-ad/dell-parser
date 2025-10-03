@@ -47,9 +47,9 @@ def get_loopback_ip(connection):
 
 def get_hostname(connection):
     """
-    Run 'show running-config grep hostname' and extract the hostname.
+    Run 'show running-config | grep hostname' and extract the hostname.
     """
-    output = connection.send_command("show run grep hostname")
+    output = connection.send_command("show run | grep hostname")
 
     for line in output.splitlines():
         if line.strip().startswith("hostname"):
