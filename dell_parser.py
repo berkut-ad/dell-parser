@@ -2,6 +2,7 @@ import argparse
 import csv
 import re
 import ipaddress
+import logging
 
 from netmiko import ConnectHandler
 
@@ -216,28 +217,37 @@ def get_vlan_basic(connection, vlan):
 
     return results
 
+# Configure logging (can be at the top of script)
+logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+
 def get_sonic_hosts(connection):
     """
     Returns a list of tuples for SONiC switches.
     Column 1: Enter SONiC SW01 .. SW29
-    Column 2: parsed hostname from 'show lldp nei | grep Name:'
+    Column 2: parsed hostname from 'show lldp nei'
+    Debug logging included.
     """
-    output = connection.send_command("show lldp nei | grep Name:")
+    output = connection.send_command("show lldp nei")  # no grep
     remote_names = []
 
-    # Regex to extract text after 'Remote System Name:'
-    pattern = re.compile(r"Remote System Name:\s*(\S+)")
+    # Regex to extract hostname after 'Remote System Name:'
+    pattern = re.compile(r"Remote System Name:\s*(.+)")
 
+    logging.debug("LLDP output received:")
     for line in output.splitlines():
+        logging.debug(f"Line: '{line}'")
         match = pattern.search(line)
         if match:
-            remote_names.append(match.group(1))
+            hostname = match.group(1).strip()
+            remote_names.append(hostname)
+            logging.debug(f"Matched hostname: '{hostname}'")
 
     # Prepare 29 rows, fill with empty string if LLDP output has fewer entries
     results = []
     for i in range(1, 30):  # SW01 to SW29
         col1 = f"Enter SONiC SW{i:02d}"
         col2 = remote_names[i-1] if i-1 < len(remote_names) else ""
+        logging.debug(f"CSV Row: '{col1}', '{col2}'")
         results.append((col1, col2))
 
     return results
